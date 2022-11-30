@@ -6,13 +6,13 @@ import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.os.Bundle
 import android.provider.ContactsContract
-import android.provider.Settings.System.DATE_FORMAT
 import android.text.format.DateFormat
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
+import androidx.core.view.doOnLayout
 import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.setFragmentResultListener
@@ -24,6 +24,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.example.criminalintent.databinding.FragmentCrimeDetailBinding
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.*
 
 private const val THE_DATE_FORMAT = "EEE, MMM, dd"
@@ -33,7 +34,7 @@ class CrimeDetailFragment : Fragment() {
 
     private var _binding: FragmentCrimeDetailBinding? = null
     private val binding
-        get() = checkNotNull(_binding){
+        get() = checkNotNull(_binding) {
             "Cannot access binding because it is null. Is the view visible?"
         }
 
@@ -48,9 +49,24 @@ class CrimeDetailFragment : Fragment() {
         uri?.let { parseContactSelection(it) }
     }
 
+    private val takePhoto = registerForActivityResult(ActivityResultContracts.TakePicture())
+    { didTakePhoto: Boolean ->
+        if (didTakePhoto && photoName != null) {
+            crimeDetailViewModel.updateCrime { oldCrime ->
+                oldCrime.copy(photoFileName = photoName)
+            }
+        }
+    }
 
-    override fun onCreateView( inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        _binding = FragmentCrimeDetailBinding.inflate(inflater,container,false)
+    private var photoName: String? = null
+
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        _binding = FragmentCrimeDetailBinding.inflate(inflater, container, false)
         return binding.root
     }
 
@@ -74,6 +90,25 @@ class CrimeDetailFragment : Fragment() {
             )
             crimeSuspect.isEnabled = canResolveIntent(selectSuspectIntent)
 
+            crimeCamera.setOnClickListener {
+                photoName = "IMG_${Date()}.JPG"
+                val photoFile = File(
+                    requireContext().applicationContext.filesDir,
+                    photoName
+                )
+                val photoUri = FileProvider.getUriForFile(
+                    requireContext(),
+                    "com.example.criminalintent.fileprovider",
+                    photoFile
+                )
+                takePhoto.launch(photoUri)
+            }
+
+//            val captureImageIntent = takePhoto.contract.createIntent(
+//                requireContext(),
+//                null
+//            )
+//            crimeCamera.isEnabled = canResolveIntent(captureImageIntent)
 
             crimeSolved.setOnCheckedChangeListener { _, isChecked ->
                 crimeDetailViewModel.updateCrime { oldCrime ->
@@ -90,9 +125,9 @@ class CrimeDetailFragment : Fragment() {
             }
         }
 
-        setFragmentResultListener(DatePickerFragment.REQUEST_KEY_DATE){_, bundle ->
+        setFragmentResultListener(DatePickerFragment.REQUEST_KEY_DATE) { _, bundle ->
             val newDate = bundle.getSerializable(DatePickerFragment.BUNDLE_KEY_DATE) as Date
-            crimeDetailViewModel.updateCrime { it.copy(date=newDate) }
+            crimeDetailViewModel.updateCrime { it.copy(date = newDate) }
         }
     }
 
@@ -108,7 +143,7 @@ class CrimeDetailFragment : Fragment() {
                 crimeTitle.setText(crime.title)
             }
             crimeDate.text = crime.date.toString()
-            crimeDate.setOnClickListener{
+            crimeDate.setOnClickListener {
                 findNavController().navigate(CrimeDetailFragmentDirections.selectDate(crime.date))
             }
             crimeSolved.isChecked = crime.isSolved
@@ -132,14 +167,16 @@ class CrimeDetailFragment : Fragment() {
             crimeSuspect.text = crime.suspect.ifEmpty {
                 getString(R.string.crime_suspect_text)
             }
+
+            updatePhoto(crime.photoFileName)
+
         }
     }
 
     private fun getCrimeReport(crime: Crime): String {
-        val solvedString = if(crime.isSolved){
+        val solvedString = if (crime.isSolved) {
             getString(R.string.crime_report_solved)
-        }
-        else{
+        } else {
             getString(R.string.crime_report_unsolved)
         }
 
@@ -178,6 +215,28 @@ class CrimeDetailFragment : Fragment() {
                 PackageManager.MATCH_DEFAULT_ONLY
             )
         return resolvedActivity != null
+    }
+
+    private fun updatePhoto(photoFileName: String?) {
+        if (binding.crimePhoto.tag != photoFileName) {
+            val photoFile = photoFileName?.let {
+                File(requireContext().applicationContext.filesDir, it)
+            }
+            if (photoFile?.exists() == true) {
+                binding.crimePhoto.doOnLayout { measuredView ->
+                    val scaledBitmap = getScaledBitmap(
+                        photoFile.path,
+                        measuredView.width,
+                        measuredView.height
+                    )
+                    binding.crimePhoto.setImageBitmap(scaledBitmap)
+                    binding.crimePhoto.tag = photoFileName
+                }
+            } else {
+                binding.crimePhoto.setImageBitmap(null)
+                binding.crimePhoto.tag = null
+            }
+        }
     }
 
 }
