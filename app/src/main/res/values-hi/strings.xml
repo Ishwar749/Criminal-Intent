@@ -15,4 +15,7 @@
     <string name="crime_report_suspect">%s संदिग्ध है।</string>
     <string name="crime_report_subject">क्रिमिनल इंटेंट क्राइम रिपोर्ट</string>
     <string name="send_report">के माध्यम से अपराध रिपोर्ट भेजें</string>
+    <string name="crime_photo_button_description">अपराध स्थल का फोटो लें</string>
+    <string name="crime_photo_no_image_description">अपराध स्थल फोटो (सेट नहीं)</string>
+    <string name="crime_photo_image_description">अपराध स्थल फोटो (सेट)</string>
 </resources>
